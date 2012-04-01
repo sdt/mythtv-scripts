@@ -6,6 +6,7 @@ use 5.10.1;
 
 use Getopt::Long qw( GetOptions );
 use IPC::Cmd qw( run );
+use JSON::XS qw( decode_json );
 
 my $verbose;
 
@@ -15,6 +16,7 @@ GetOptions(
 
 my @checks = (
     \&check_mythtv,
+    \&check_sabnzbd,
     \&check_uptime,
     \&check_users,
 );
@@ -35,6 +37,20 @@ sub check_mythtv {
     return;
 }
 
+sub check_sabnzbd {
+    my $host = 'localhost';
+    my $port = 8888;
+    my $key = '77f3b3e96a07fe2dca05a7fd45f4638b';
+    my $uri = "http://$host:$port/sabnzbd/api?mode=qstatus\\&output=json\\&apikey=$key";
+
+    my $sab = eval { decode_json(`curl -s $uri`) };
+    diag("curl $uri failed: $@") unless $sab;
+
+    no_shutdown("SABnzbd has $sab->{noofslots} active downloads")
+        if $sab && ($sab->{noofslots} > 1) && !$sab->{paused};
+    return;
+}
+
 sub check_uptime {
     my $minimum_minutes = 5;
     open(my $fh, '<', '/proc/uptime') or return;
@@ -50,6 +66,11 @@ sub check_users {
     chomp $users;
     no_shutdown("logged in users: [$users]")
         if $users;
+    return;
+}
+
+sub diag {
+    logit('info: ', @_);
     return;
 }
 
