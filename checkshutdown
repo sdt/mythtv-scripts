@@ -15,7 +15,8 @@ GetOptions(
 );
 
 my @checks = (
-    \&check_mythtv,
+    \&check_mythfrontend,
+    \&check_mythshutdown,
     \&check_sabnzbd,
     \&check_uptime,
     \&check_users,
@@ -31,8 +32,14 @@ sub main {
     return 0;
 }
 
-sub check_mythtv {
-    no_shutdown('mythtv is busy')
+sub check_mythfrontend {
+    no_shutdown('mythfrontend not running')
+        unless grep { /mythfrontend/ } `ps ax`;
+    return;
+}
+
+sub check_mythshutdown {
+    no_shutdown('mythshutdown is busy')
         unless run(command => [qw( mythshutdown --status )]);
     return;
 }
@@ -64,6 +71,8 @@ sub check_uptime {
 sub check_users {
     my $users = join(' ',
             sort map  { /^(.*?)\s/ && $1 }
+            # Don't block if terminal is :0
+            # -- only if pts/X
             grep { /pts.*still logged in/ } `last`
         );
     no_shutdown("logged in users: [$users]")
@@ -77,7 +86,7 @@ sub diag {
 }
 
 sub no_shutdown {
-    logit('not ready for shutdown: ', @_);
+    logit('not ready for shutdown:', @_);
     exit 1;
 }
 
