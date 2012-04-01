@@ -2,5 +2,32 @@
 
 use strict;
 use warnings;
-
 use 5.10.1;
+
+use IPC::Cmd qw( run );
+
+my @checks = (
+    \&check_mythtv,
+);
+
+exit main();
+
+sub main {
+    for my $check (@checks) {
+        return 1 unless $check->();
+    }
+    logit('all clear for shutdown');
+    return 0;
+}
+
+sub check_mythtv {
+    my $ok = run(command => [qw( mythshutdown --status )]);
+    return $ok if $ok;
+    logit('mythtv is busy');
+    return;
+}
+
+sub logit {
+    #system(qw( logger -p local0.info -t checkshutdown ), @_);
+    say join(' ', @_);
+}
