@@ -62,8 +62,10 @@ sub check_uptime {
 }
 
 sub check_users {
-    my $users = `users`;
-    chomp $users;
+    my $users = join(' ',
+            sort map  { /^(.*?)\s/ && $1 }
+            grep { /pts.*still logged in/ } `last`
+        );
     no_shutdown("logged in users: [$users]")
         if $users;
     return;
