@@ -4,30 +4,65 @@ use strict;
 use warnings;
 use 5.10.1;
 
+use Getopt::Long qw( GetOptions );
 use IPC::Cmd qw( run );
+
+my $verbose;
+
+GetOptions(
+    'verbose|v' => \$verbose,
+);
 
 my @checks = (
     \&check_mythtv,
+    \&check_uptime,
+    \&check_users,
 );
 
 exit main();
 
 sub main {
     for my $check (@checks) {
-        return 1 unless $check->();
+        $check->();
     }
     logit('all clear for shutdown');
     return 0;
 }
 
 sub check_mythtv {
-    my $ok = run(command => [qw( mythshutdown --status )]);
-    return $ok if $ok;
-    logit('mythtv is busy');
+    no_shutdown('mythtv is busy')
+        unless run(command => [qw( mythshutdown --status )]);
     return;
 }
 
+sub check_uptime {
+    my $minimum_minutes = 5;
+    open(my $fh, '<', '/proc/uptime') or return;
+    my $line = <$fh>;
+    my ($uptime) = split(/\s+/, $line);
+    no_shutdown("up for less than $minimum_minutes minutes")
+        unless $uptime > $minimum_minutes * 60;
+    return;
+}
+
+sub check_users {
+    my $users = `users`;
+    chomp $users;
+    no_shutdown("logged in users: [$users]")
+        if $users;
+    return;
+}
+
+sub no_shutdown {
+    logit('not ready for shutdown: ', @_);
+    exit 1;
+}
+
 sub logit {
-    #system(qw( logger -p local0.info -t checkshutdown ), @_);
-    say join(' ', @_);
+    if ($verbose) {
+        say join(' ', @_) if $verbose;
+    }
+    else {
+        system(qw( logger -p local0.info -t ), "checkshutdown[$$]", @_);
+    }
 }
