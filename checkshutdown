@@ -54,7 +54,7 @@ sub check_sabnzbd {
     diag("curl $uri failed: $@") unless $sab;
 
     no_shutdown("SABnzbd has $sab->{noofslots} active downloads")
-        if $sab && ($sab->{noofslots} > 1) && !$sab->{paused};
+        if $sab && ($sab->{noofslots} > 0) && !$sab->{paused};
     return;
 }
 
