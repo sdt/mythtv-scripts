@@ -15,11 +15,11 @@ GetOptions(
 );
 
 my @checks = (
+    \&check_sabnzbd,
     \&check_mythfrontend,
     \&check_mythshutdown,
-    \&check_sabnzbd,
+    \&check_ssh_sessions,
     \&check_uptime,
-    \&check_users,
 );
 
 exit main();
@@ -58,6 +58,15 @@ sub check_sabnzbd {
     return;
 }
 
+sub check_ssh_sessions {
+    my $active_ssh_sessions = scalar grep { /:ssh$/ }
+                                     map { [ split ]->[3] }
+                                     `netstat --inet --numeric-hosts`;
+    no_shutdown("$active_ssh_sessions active ssh sessions")
+        if $active_ssh_sessions;
+    return;
+}
+
 sub check_uptime {
     my $minimum_minutes = 5;
     open(my $fh, '<', '/proc/uptime') or return;
@@ -65,18 +74,6 @@ sub check_uptime {
     my ($uptime) = split(/\s+/, $line);
     no_shutdown("up for less than $minimum_minutes minutes")
         unless $uptime > $minimum_minutes * 60;
-    return;
-}
-
-sub check_users {
-    my $users = join(' ',
-            sort map  { /^(.*?)\s/ && $1 }
-            # Don't block if terminal is :0
-            # -- only if pts/X
-            grep { /pts.*still logged in/ } `last`
-        );
-    no_shutdown("logged in users: [$users]")
-        if $users;
     return;
 }
 
