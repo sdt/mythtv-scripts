@@ -5,76 +5,131 @@ use warnings;
 use 5.10.1;
 
 use Getopt::Long qw( GetOptions );
-use IPC::Cmd qw( run );
-use JSON::XS qw( decode_json );
 
-my $verbose;
-
-GetOptions(
-    'verbose|v' => \$verbose,
+my %opt = (
+    help => 0,
+    syslog => 0,
 );
 
-my @checks = (
-    \&check_sabnzbd,
-    \&check_mythfrontend,
-    \&check_mythshutdown,
-    \&check_ssh_sessions,
-    \&check_uptime,
+my %check_table = (
+
+    console_user => {
+        help => 'Check is a user is logged in at the console',
+        code => sub {
+            return 'console user is active'
+                unless grep { /mythfrontend/ } `ps ax`;
+            return;
+        },
+    },
+
+    mythshutdown => {
+        help => 'Check if MythTV is busy',
+        code => sub {
+            use IPC::Cmd qw( run );
+            return 'mythshutdown is busy'
+                unless run(command => [qw( mythshutdown --status )]);
+            return;
+        },
+    },
+
+    sabnzbd => {
+        help => 'Check if SABnzbd is busy',
+        code => sub {
+            use JSON::XS qw( decode_json );
+
+            my $host = 'localhost';
+            my $port = 8888;
+            my $key = '77f3b3e96a07fe2dca05a7fd45f4638b';
+            my $uri = "http://$host:$port/sabnzbd/api?mode=qstatus\\&output=json\\&apikey=$key";
+
+            my $sab = eval { decode_json(`curl -s $uri`) };
+            #diag("curl $uri failed: $@") unless $sab;
+
+            return "SABnzbd has $sab->{noofslots} active downloads"
+                if $sab && ($sab->{noofslots} > 0) && !$sab->{paused};
+            return;
+        },
+    },
+
+    ssh_sessions => {
+        help => 'Check for users logged in by ssh',
+        code => sub {
+            my $active_ssh_sessions =
+                scalar grep { /:ssh$/ }
+                       map { [ split ]->[3] }
+                       `netstat --inet --numeric-hosts`;
+            return "$active_ssh_sessions active ssh sessions"
+                if $active_ssh_sessions;
+            return;
+        },
+    },
+
+    uptime => {
+        help => 'Check is system has been up long enough',
+        code => sub {
+            my $minimum_minutes = 5;
+            open(my $fh, '<', '/proc/uptime') or return;
+            my $line = <$fh>;
+            my ($uptime) = split(/\s+/, $line);
+            return "up for less than $minimum_minutes minutes"
+                unless $uptime > $minimum_minutes * 60;
+            return;
+        },
+    },
+
 );
 
-exit main();
+my @default_checks = qw(
+    console_user
+    mythshutdown
+    sabnzbd
+    ssh_sessions
+    uptime
+);
+
+my $opt_ok = GetOptions(
+    'help|h|?' => \$opt{help},
+    'syslog|s' => \$opt{syslog},
+);
+
+if ($opt{help} || !$opt_ok) {
+    usage();
+}
+
+exit main(@ARGV);
 
 sub main {
-    for my $check (@checks) {
-        $check->();
+    my @checks = @_ ? @_ : @default_checks;
+    my $ok_to_shutdown = 1;
+    my @msgs;
+    for my $name (@checks) {
+        my $check = $check_table{$name};
+        if (!$check) {
+            diag("Unknown check: $name");
+            next;
+        }
+        my $msg = $check->{code}->();
+        $ok_to_shutdown = 0 if $msg;
+        push(@msgs, $msg) if $msg;
+        $msg ||= 'OK';
+        logit(sprintf("%-16s$msg", "$name")) unless $opt{syslog};
     }
-    logit('all clear for shutdown');
-    return 0;
+    if ($opt{syslog}) {
+        logit($ok_to_shutdown ? 'all clear for shutdown' : 'busy: ' . join(', ', @msgs));
+    }
+    else {
+        logit($ok_to_shutdown ? 'all clear for shutdown' : 'not shutting down');
+    }
+    return $ok_to_shutdown ? 0 : 1;
 }
 
-sub check_mythfrontend {
-    no_shutdown('mythfrontend not running')
-        unless grep { /mythfrontend/ } `ps ax`;
-    return;
-}
-
-sub check_mythshutdown {
-    no_shutdown('mythshutdown is busy')
-        unless run(command => [qw( mythshutdown --status )]);
-    return;
-}
-
-sub check_sabnzbd {
-    my $host = 'localhost';
-    my $port = 8888;
-    my $key = '77f3b3e96a07fe2dca05a7fd45f4638b';
-    my $uri = "http://$host:$port/sabnzbd/api?mode=qstatus\\&output=json\\&apikey=$key";
-
-    my $sab = eval { decode_json(`curl -s $uri`) };
-    diag("curl $uri failed: $@") unless $sab;
-
-    no_shutdown("SABnzbd has $sab->{noofslots} active downloads")
-        if $sab && ($sab->{noofslots} > 0) && !$sab->{paused};
-    return;
-}
-
-sub check_ssh_sessions {
-    my $active_ssh_sessions = scalar grep { /:ssh$/ }
-                                     map { [ split ]->[3] }
-                                     `netstat --inet --numeric-hosts`;
-    no_shutdown("$active_ssh_sessions active ssh sessions")
-        if $active_ssh_sessions;
-    return;
-}
-
-sub check_uptime {
-    my $minimum_minutes = 5;
-    open(my $fh, '<', '/proc/uptime') or return;
-    my $line = <$fh>;
-    my ($uptime) = split(/\s+/, $line);
-    no_shutdown("up for less than $minimum_minutes minutes")
-        unless $uptime > $minimum_minutes * 60;
-    return;
+sub usage {
+    my $msg = "usage: $0 [--syslog] [check [checks...]]\n\nchecks:\n";
+    for my $name (sort keys %check_table) {
+        my $check = $check_table{$name};
+        $msg .= sprintf"\t%-16s%s\n", $name, $check->{help};
+    }
+    die $msg;
 }
 
 sub diag {
@@ -88,10 +143,10 @@ sub no_shutdown {
 }
 
 sub logit {
-    if ($verbose) {
-        say join(' ', @_) if $verbose;
+    if ($opt{syslog}) {
+        system(qw( logger -p local0.info -t ), "checkshutdown[$$]", @_);
     }
     else {
-        system(qw( logger -p local0.info -t ), "checkshutdown[$$]", @_);
+        say join(' ', @_);
     }
 }
