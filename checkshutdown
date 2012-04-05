@@ -8,6 +8,7 @@ use Getopt::Long qw( GetOptions );
 
 my %opt = (
     help => 0,
+    statefile => '/tmp/checkshutdown.state',
     syslog => 0,
 );
 
@@ -115,7 +116,12 @@ sub main {
         logit(sprintf("%-16s$msg", "$name")) unless $opt{syslog};
     }
     if ($opt{syslog}) {
-        logit($ok_to_shutdown ? 'all clear for shutdown' : 'busy: ' . join(', ', @msgs));
+        my $prev_state = load_state();
+        my $new_state = $ok_to_shutdown ? 'all clear for shutdown' : 'busy: ' . join(', ', @msgs);
+        if ($prev_state ne $new_state) {
+            logit($new_state);
+            save_state($new_state);
+        }
     }
     else {
         logit($ok_to_shutdown ? 'all clear for shutdown' : 'not shutting down');
@@ -137,9 +143,17 @@ sub diag {
     return;
 }
 
-sub no_shutdown {
-    logit('not ready for shutdown:', @_);
-    exit 1;
+sub load_state {
+    open(my $fh, '<', $opt{statefile}) or return "";
+    my $state = <$fh> || "";
+    chomp $state;
+    return $state;
+}
+
+sub save_state {
+    my ($state) = @_;
+    open(my $fh, '>', $opt{statefile}) or return;
+    print {$fh} $state, "\n";
 }
 
 sub logit {
