@@ -26,10 +26,10 @@ my %check_table = (
     mythshutdown => {
         help => 'Check if MythTV is busy',
         code => sub {
-            use IPC::Cmd qw( run );
-            return 'mythshutdown is busy'
-                unless run(command => [qw( mythshutdown --status )]);
-            return;
+            my $exit = system(qw( mythshutdown --status ));
+            return sprintf('mythshutdown status 0x%02x', $exit >> 8)
+                if $exit > 0;
+            return; # 0 = shutdown ok, -1 = didn't run
         },
     },
 
