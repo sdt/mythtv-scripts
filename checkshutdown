@@ -65,6 +65,15 @@ my %check_table = (
         },
     },
 
+    xbmc => {
+        help => 'Check if XBMC is running',
+        code => sub {
+            return 'XBMC is running'
+                if grep { m</usr/bin/xbmc> } `ps ax`;
+            return;
+        },
+    },
+
     uptime => {
         help => 'Check is system has been up long enough',
         code => sub {
@@ -86,6 +95,7 @@ my @default_checks = qw(
     sabnzbd
     ssh_sessions
     uptime
+    xbmc
 );
 
 my $opt_ok = GetOptions(
@@ -103,6 +113,7 @@ sub main {
     my @checks = @_ ? @_ : @default_checks;
     my $ok_to_shutdown = 1;
     my @msgs;
+
     for my $name (@checks) {
         my $check = $check_table{$name};
         if (!$check) {
