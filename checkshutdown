@@ -36,7 +36,7 @@ my %check_table = (
         help => 'Check is a user is logged in at the console',
         code => sub {
             return 'console user is active'
-                unless grep { /mythfrontend/ } `ps ax`;
+                unless grep { /mythwelcome/ } `ps ax`;
             return;
         },
     },
