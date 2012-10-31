@@ -12,3 +12,4 @@ This script checks for various types of activity before giving the all clear:
     * sabnzbd downloading
     * mythshutdown --status
 
+Inspired by [James FitzGibbon's mythcheckshutdown](https://github.com/jf647/mythcheckshutdown).  Thanks James!
