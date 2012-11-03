@@ -207,10 +207,10 @@ sub last_apache_access {
             pattern   => '%e/%b/%Y:%H:%M:%S %z',
         );
 
-    my $last;
+    my $dt;
     while (<$fh>) {
-        $last = $parser->parse_datetime($1) if (/\[(.*?)\]/);
+        $dt = $1 if /\[(.*?)\]/;
     }
-    return $last;
-
+    return unless defined $dt;
+    return $parser->parse_datetime($dt);
 }
