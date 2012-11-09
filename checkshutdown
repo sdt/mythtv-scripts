@@ -59,13 +59,13 @@ my %check_table = (
             my $host = 'localhost';
             my $port = 8888;
             my $key = '77f3b3e96a07fe2dca05a7fd45f4638b';
-            my $uri = "http://$host:$port/sabnzbd/api?mode=qstatus\\&output=json\\&apikey=$key";
+            my $uri = "http://$host:$port/sabnzbd/api?mode=queue\\&output=json\\&apikey=$key";
 
-            my $sab = eval { decode_json(`curl -s $uri`) };
-            #diag("curl $uri failed: $@") unless $sab;
+            my $sab = eval { decode_json(`curl -s $uri`)->{queue} };
+            #die("curl $uri failed: $@") unless $sab;
 
-            return "SABnzbd has $sab->{noofslots} active downloads"
-                if $sab && ($sab->{noofslots} > 0) && !$sab->{paused};
+            return "SABnzbd is busy"
+                if $sab && ($sab->{status} eq 'Downloading');
             return;
         },
     },
