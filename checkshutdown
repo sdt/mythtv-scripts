@@ -109,6 +109,7 @@ my %check_table = (
 
 my @default_checks = qw(
     apache
+    console_user
     mythshutdown
     sabnzbd
     ssh_sessions
