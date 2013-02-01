@@ -1,0 +1,59 @@
+#!/usr/bin/env perl
+
+# Clean the sick from your beard...
+
+# Move the sickbeard downloads into their final locations, and create hard links
+# to the outgoing directory.
+
+use 5.12.0;
+use autodie;
+use warnings;
+
+use File::Find              qw( find );
+use File::Spec::Functions   qw( catdir catfile splitdir );
+
+umask(0002);    # want dirs to be group writable
+
+my %CFG = (
+    source_root => '/var/lib/mythtv/sab/sickbeard',
+    dest_root   => '/var/lib/mythtv/videos/TV',
+    link_dirs   => [
+        '/var/lib/mythtv/sab/outgoing',
+    ],
+);
+
+my $dry_run = (grep { /^-f$/ } @ARGV) == 0;
+if ($dry_run) {
+    say STDERR "Dry run only. Specify -f to force.";
+}
+
+sub find_cb {
+    return unless -f;
+
+    my $episode_name = $_;
+    my $dirname  = $File::Find::dir;
+    my $source_file = $File::Find::name;
+    my ($show_name) = reverse splitdir($dirname);
+
+    my $dest_dir = catdir($CFG{dest_root}, $show_name);
+    my $dest_file = catfile($dest_dir, $episode_name);
+
+    if (not -d $dest_dir) {
+        say "mkdir $dest_dir";
+        if (not $dry_run) {
+            mkdir($dest_dir);
+            chmod(0775, $dest_dir);
+        }
+    }
+    say "mv $source_file $dest_file";
+    rename($source_file, $dest_file) unless $dry_run;
+    for my $link_dir (@{ $CFG{link_dirs} }) {
+        my $link_file = catfile($link_dir, $episode_name);
+        say "ln $dest_file $link_file";
+        link($dest_file, $link_file) unless $dry_run;
+    }
+}
+
+find({
+    wanted => \&find_cb,
+}, $CFG{source_root});
