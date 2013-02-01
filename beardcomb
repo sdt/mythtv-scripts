@@ -42,7 +42,7 @@ sub find_cb {
         say "mkdir $dest_dir";
         if (not $dry_run) {
             mkdir($dest_dir);
-            chmod(0775, $dest_dir);
+            chmod(02775, $dest_dir);
         }
     }
     say "mv $source_file $dest_file";
