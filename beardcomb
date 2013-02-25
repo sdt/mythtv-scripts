@@ -22,6 +22,7 @@ my %CFG = (
     ],
 );
 
+my $files = 0;
 my $dry_run = (grep { /^-f$/ } @ARGV) == 0;
 if ($dry_run) {
     say STDERR "Dry run only. Specify -f to force.";
@@ -52,8 +53,13 @@ sub find_cb {
         say "ln $dest_file $link_file";
         link($dest_file, $link_file) unless $dry_run;
     }
+    $files++;
 }
 
 find({
     wanted => \&find_cb,
 }, $CFG{source_root});
+
+if (($files > 0) && !$dry_run) {
+    system(qw/  mythutil -q --scanvideos /);
+}
