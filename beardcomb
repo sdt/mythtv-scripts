@@ -60,6 +60,8 @@ find({
     wanted => \&find_cb,
 }, $CFG{source_root});
 
-if (($files > 0) && !$dry_run) {
-    system(qw/  mythutil -q --scanvideos /);
-}
+# This is causing permission problems when called from sab, and stability
+# problems if the mythtv frontend is running. Not worth it.
+#if (($files > 0) && !$dry_run) {
+#    system(qw/  mythutil -q --scanvideos /);
+#}
