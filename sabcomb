@@ -1,4 +1,5 @@
 #!/bin/sh
 
-./sabToSickBeard.py "$@"
-./beardcomb -f
+SCRIPTDIR=/var/lib/mythtv/sab/scripts/
+$SCRIPTDIR/sabToSickBeard.py "$@"
+$SCRIPTDIR/beardcomb -f
