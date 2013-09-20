@@ -17,20 +17,8 @@ my %opt = (
 
 my %check_table = (
 
-    apache => {
-        help => 'Check for recent apache requests',
-        code => sub {
-            my $last_access = last_apache_access('/var/log/apache2/access.log');
-            return unless defined $last_access;
-            my $now = DateTime->now->epoch;
-            my $age = $now - $last_access->epoch;
-            my $max_age = 3 * 60;
-            if ($age < $max_age) {
-                return "Apache access $age seconds ago within $max_age seconds";
-            }
-            return;
-        },
-    },
+    apache => make_logfile_checker(Apache =>
+                '/var/log/apache2/access.log', 3 * 60),
 
     console_user => {
         help => 'Check is a user is logged in at the console',
@@ -51,24 +39,11 @@ my %check_table = (
         },
     },
 
-    sabnzbd => {
-        help => 'Check if SABnzbd is busy',
-        code => sub {
-            use JSON::XS qw( decode_json );
+    sabnzbd => make_logfile_checker(SABnzbd =>
+                '/home/sab/.sabnzbd/logs/sabnzbd.log', 5 * 60),
 
-            my $host = 'localhost';
-            my $port = 8888;
-            my $key = '77f3b3e96a07fe2dca05a7fd45f4638b';
-            my $uri = "http://$host:$port/sabnzbd/api?mode=queue\\&output=json\\&apikey=$key";
-
-            my $sab = eval { decode_json(`curl -s $uri`)->{queue} };
-            #die("curl $uri failed: $@") unless $sab;
-
-            return "SABnzbd is busy"
-                if $sab && ($sab->{status} eq 'Downloading');
-            return;
-        },
-    },
+    sickbeard => make_logfile_checker(Sickbeard =>
+                '/opt/sickbeard/Logs/sickbeard.log', 2 * 60),
 
     ssh_sessions => {
         help => 'Check for users logged in by ssh',
@@ -112,6 +87,7 @@ my @default_checks = qw(
     console_user
     mythshutdown
     sabnzbd
+    sickbeard
     ssh_sessions
     uptime
     xbmc
@@ -195,22 +171,19 @@ sub logit {
     }
 }
 
-sub last_apache_access {
-    my ($filename) = @_;
-    open my $fh, '<', $filename or (
-        warn("Opening $filename: $!"), return
-    );
+sub check_last_mtime {
+    my ($name, $filename, $min_age_sec) = @_;
 
-    # 23/Sep/2012:14:54:34 +1000
-    use DateTime::Format::Strptime;
-    my $parser = DateTime::Format::Strptime->new(
-            pattern   => '%e/%b/%Y:%H:%M:%S %z',
-        );
-
-    my $dt;
-    while (<$fh>) {
-        $dt = $1 if /\[(.*?)\]/;
-    }
-    return unless defined $dt;
-    return $parser->parse_datetime($dt);
+    my $mtime_age = time - ((stat($filename))[9] // 0);
+    return if ($mtime_age > $min_age_sec);
+    return "$name access $mtime_age seconds ago within $min_age_sec seconds";
 }
+
+sub make_logfile_checker {
+    my ($name, $filename, $min_age_sec) = @_;
+    return {
+        help => "Check if $name is busy",
+        code => sub { check_last_mtime($name, $filename, $min_age_sec) },
+    };
+}
+
