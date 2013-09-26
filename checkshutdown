@@ -178,7 +178,7 @@ sub check_last_mtime {
 
     my $mtime_age = time - ((stat($filename))[9] // 0);
     return if ($mtime_age > $min_age_sec);
-    return "$name access $mtime_age seconds ago within $min_age_sec seconds";
+    return "$name activity $mtime_age seconds ago within $min_age_sec seconds";
 }
 
 sub make_logfile_checker {
