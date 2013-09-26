@@ -137,9 +137,11 @@ sub main {
 
 sub usage {
     my $msg = "usage: $0 [--syslog] [check [checks...]]\n\nchecks:\n";
+    my %check_enabled = map { $_ => 1 } @default_checks;
     for my $name (sort keys %check_table) {
         my $check = $check_table{$name};
-        $msg .= sprintf"\t%-16s%s\n", $name, $check->{help};
+        my $enabled = $check_enabled{$name} ? '* ' : '  ';
+        $msg .= sprintf"\t%-16s%s\n", $name, $enabled . $check->{help};
     }
     die $msg;
 }
