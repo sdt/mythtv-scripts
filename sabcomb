@@ -3,3 +3,4 @@
 SCRIPTDIR=/var/lib/mythtv/sab/scripts/
 $SCRIPTDIR/sabToSickBeard.py "$@"
 $SCRIPTDIR/beardcomb -f
+echo "$2"
